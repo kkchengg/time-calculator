@@ -27,6 +27,10 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+        env:
+          VITE_ADSENSE_CLIENT: ${{ vars.VITE_ADSENSE_CLIENT }}
+          VITE_ADSENSE_SLOT_TOP: ${{ vars.VITE_ADSENSE_SLOT_TOP }}
+          VITE_ADSENSE_SLOT_BOTTOM: ${{ vars.VITE_ADSENSE_SLOT_BOTTOM }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
