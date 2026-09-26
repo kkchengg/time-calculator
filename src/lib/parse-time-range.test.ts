@@ -3,84 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   canExtendToValidFourDigitCompact,
   ParseTimeRangeError,
-  parseTimeRange,
   sanitizeTimeDigits,
   shouldAutoFocusTimeToAfterFrom,
   tryParseDigitField,
-  tryParseTimeRange,
 } from './parse-time-range';
-
-describe('parseTimeRange', () => {
-  it('parses H:MM - H:MM', () => {
-    expect(parseTimeRange('10:00 - 12:45')).toEqual({
-      leftMinutes: 600,
-      rightMinutes: 765,
-    });
-  });
-
-  it('trims whitespace', () => {
-    expect(parseTimeRange('  10:00  -  12:45  ')).toEqual({
-      leftMinutes: 600,
-      rightMinutes: 765,
-    });
-  });
-
-  it('accepts en dash', () => {
-    expect(parseTimeRange('10:00 \u2013 12:45')).toEqual({
-      leftMinutes: 600,
-      rightMinutes: 765,
-    });
-  });
-
-  it('parses compact HHMM - HHMM', () => {
-    expect(parseTimeRange('1000-1200')).toEqual({
-      leftMinutes: 600,
-      rightMinutes: 720,
-    });
-    expect(parseTimeRange('1000 - 1200')).toEqual({
-      leftMinutes: 600,
-      rightMinutes: 720,
-    });
-  });
-
-  it('parses compact HMM - HMM', () => {
-    expect(parseTimeRange('930-1200')).toEqual({
-      leftMinutes: 9 * 60 + 30,
-      rightMinutes: 720,
-    });
-  });
-
-  it('rejects multiple hyphens in expression', () => {
-    expect(() => parseTimeRange('10:00 - 12:00 - 14:00')).toThrow(
-      ParseTimeRangeError,
-    );
-  });
-
-  it('rejects empty input', () => {
-    expect(() => parseTimeRange('')).toThrow(ParseTimeRangeError);
-  });
-
-  it('rejects missing separator', () => {
-    expect(() => parseTimeRange('10:00')).toThrow(ParseTimeRangeError);
-  });
-
-  it('rejects incomplete range', () => {
-    expect(() => parseTimeRange('10:00 -')).toThrow(ParseTimeRangeError);
-  });
-
-  it('rejects invalid minute', () => {
-    expect(() => parseTimeRange('10:00 - 12:60')).toThrow(ParseTimeRangeError);
-  });
-
-  it('rejects hour out of range', () => {
-    expect(() => parseTimeRange('24:00 - 12:00')).toThrow(ParseTimeRangeError);
-  });
-
-  it('tryParse returns error instance', () => {
-    const r = tryParseTimeRange('nope');
-    expect(r).toBeInstanceOf(ParseTimeRangeError);
-  });
-});
 
 describe('sanitizeTimeDigits', () => {
   it('strips non-digits and caps length', () => {
@@ -98,6 +24,32 @@ describe('sanitizeTimeDigits', () => {
   it('supports 24-hour colon input', () => {
     expect(sanitizeTimeDigits('00:00')).toBe('0000');
   });
+
+  it('converts am/pm to 24-hour compact digits', () => {
+    expect(sanitizeTimeDigits('12:00pm')).toBe('1200');
+    expect(sanitizeTimeDigits('1:00pm')).toBe('1300');
+    expect(sanitizeTimeDigits('0:00am')).toBe('0000');
+    expect(sanitizeTimeDigits('10:05 pm')).toBe('2205');
+  });
+
+  it('accepts single-digit minutes when a colon is present', () => {
+    expect(sanitizeTimeDigits('10:5pm')).toBe('2205');
+    expect(sanitizeTimeDigits('12:5am')).toBe('0005');
+    expect(sanitizeTimeDigits('1:5pm')).toBe('1305');
+    expect(sanitizeTimeDigits('10:5')).toBe('1005');
+  });
+
+  it('falls back to stripping digits when the time is out of range', () => {
+    expect(sanitizeTimeDigits('12:60pm')).toBe('1260');
+  });
+
+  it('converts the hour without validating it (characterization)', () => {
+    expect(sanitizeTimeDigits('13:00pm')).toBe('2500');
+  });
+
+  it('returns empty for blank input', () => {
+    expect(sanitizeTimeDigits('   ')).toBe('');
+  });
 });
 
 describe('tryParseDigitField', () => {
@@ -112,33 +64,69 @@ describe('tryParseDigitField', () => {
     });
   });
 
-  it('returns incomplete for short input', () => {
+  it('returns empty/incomplete for short input', () => {
     expect(tryParseDigitField('')).toEqual({ status: 'empty' });
     expect(tryParseDigitField('12')).toEqual({ status: 'incomplete' });
+  });
+
+  it.each([
+    ['000', 0],
+    ['001', 1],
+    ['059', 59],
+    ['100', 60],
+    ['600', 360],
+    ['2359', 1439],
+  ])('parses %s', (digits, minutes) => {
+    expect(tryParseDigitField(digits)).toEqual({ status: 'ok', minutes });
+  });
+
+  it('parses pasted 12-hour times with single-digit minutes', () => {
+    expect(tryParseDigitField('10:5pm')).toEqual({
+      status: 'ok',
+      minutes: 22 * 60 + 5,
+    });
+    expect(tryParseDigitField('12:5am')).toEqual({ status: 'ok', minutes: 5 });
+  });
+
+  it.each(['060', '2400', '2360'])('rejects %s as invalid_time', (digits) => {
+    const result = tryParseDigitField(digits);
+    expect(result.status).toBe('error');
+    if (result.status === 'error') {
+      expect(result.error).toBeInstanceOf(ParseTimeRangeError);
+      expect(result.error.code).toBe('invalid_time');
+    }
   });
 });
 
 describe('canExtendToValidFourDigitCompact', () => {
-  it('detects prefix of valid HHMM', () => {
-    expect(canExtendToValidFourDigitCompact('100')).toBe(true);
-    expect(canExtendToValidFourDigitCompact('123')).toBe(true);
-  });
-
-  it('is false when no fourth digit yields valid time', () => {
-    expect(canExtendToValidFourDigitCompact('930')).toBe(false);
+  it.each([
+    ['000', true],
+    ['001', true],
+    ['100', true],
+    ['123', true],
+    ['059', false],
+    ['240', false],
+    ['930', false],
+    ['999', false],
+    ['0000', false],
+  ])('canExtendToValidFourDigitCompact(%s) === %s', (input, expected) => {
+    expect(canExtendToValidFourDigitCompact(input)).toBe(expected);
   });
 });
 
 describe('shouldAutoFocusTimeToAfterFrom', () => {
-  it('is true after 4 valid digits', () => {
-    expect(shouldAutoFocusTimeToAfterFrom('1000')).toBe(true);
-  });
-
-  it('is true after 3 digits when not extendable', () => {
-    expect(shouldAutoFocusTimeToAfterFrom('930')).toBe(true);
-  });
-
-  it('is false when 3 digits can still become valid HHMM', () => {
-    expect(shouldAutoFocusTimeToAfterFrom('100')).toBe(false);
+  it.each([
+    ['', false],
+    ['1', false],
+    ['10', false],
+    ['100', false],
+    ['059', true],
+    ['240', true],
+    ['930', true],
+    ['1000', true],
+    ['2359', true],
+    ['2400', false],
+  ])('shouldAutoFocusTimeToAfterFrom(%s) === %s', (input, expected) => {
+    expect(shouldAutoFocusTimeToAfterFrom(input)).toBe(expected);
   });
 });

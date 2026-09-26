@@ -27,11 +27,15 @@ export function formatDuration(totalMinutes: number): string {
 export function formatDecimalHours(
   totalMinutes: number,
   fractionDigits = 2,
+  hourSuffix = ' hr',
 ): string {
   const hours = totalMinutes / 60;
-  return `${hours.toFixed(fractionDigits)} hr`;
+  return `${hours.toFixed(fractionDigits)}${hourSuffix}`;
 }
 
-export function formatTotalMinutes(totalMinutes: number): string {
-  return `${Math.round(totalMinutes)} min`;
+export function formatTotalMinutes(
+  totalMinutes: number,
+  minuteSuffix = ' min',
+): string {
+  return `${Math.round(totalMinutes)}${minuteSuffix}`;
 }

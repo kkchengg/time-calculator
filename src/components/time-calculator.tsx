@@ -8,6 +8,8 @@ import {
   type KeyboardEvent,
 } from 'react';
 
+import { useTranslation } from '@/i18n/i18n-context';
+import { LanguageSwitcher } from '@/components/language-switcher';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +18,6 @@ import {
   sanitizeTimeDigits,
   shouldAutoFocusTimeToAfterFrom,
   tryParseDigitField,
-  type ParsedTimeRange,
 } from '@/lib/parse-time-range';
 import {
   backwardDiffMinutes,
@@ -29,7 +30,7 @@ import { cn } from '@/lib/utils';
 
 type ParseState =
   | { status: 'idle' }
-  | { status: 'ok'; data: ParsedTimeRange }
+  | { status: 'ok'; data: { leftMinutes: number; rightMinutes: number } }
   | { status: 'error-from'; message: string }
   | { status: 'error-to'; message: string };
 
@@ -43,13 +44,27 @@ function getCurrentTimeDigits(): string {
 }
 
 function CopyValueButton({ value }: { value: string }) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
+  const resetTimer = useRef<number | undefined>(undefined);
+
+  useEffect(
+    () => () => {
+      if (resetTimer.current !== undefined) {
+        window.clearTimeout(resetTimer.current);
+      }
+    },
+    [],
+  );
 
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
+      if (resetTimer.current !== undefined) {
+        window.clearTimeout(resetTimer.current);
+      }
+      resetTimer.current = window.setTimeout(() => setCopied(false), 1600);
     } catch {
       setCopied(false);
     }
@@ -62,7 +77,7 @@ function CopyValueButton({ value }: { value: string }) {
       size="icon"
       className="shrink-0 text-muted-foreground hover:text-foreground"
       onClick={copy}
-      aria-label={`Copy ${value}`}
+      aria-label={t('copy.label', { value })}
     >
       {copied ? (
         <Check className="size-4 text-[hsl(152_55%_38%)]" />
@@ -78,15 +93,20 @@ function ResultRow({
   description,
   totalMinutes,
   variant,
+  hourSuffix,
+  minuteSuffix,
 }: {
   title: string;
   description: string;
   totalMinutes: number;
   variant: ResultVariant;
+  hourSuffix: string;
+  minuteSuffix: string;
 }) {
+  const { t } = useTranslation();
   const duration = formatDuration(totalMinutes);
-  const decimal = formatDecimalHours(totalMinutes);
-  const mins = formatTotalMinutes(totalMinutes);
+  const decimal = formatDecimalHours(totalMinutes, 2, hourSuffix);
+  const mins = formatTotalMinutes(totalMinutes, minuteSuffix);
 
   return (
     <div
@@ -124,21 +144,29 @@ function ResultRow({
       <dl className="grid gap-3 sm:grid-cols-1">
         <div className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-white/85 px-3 py-2 font-mono text-sm shadow-sm">
           <div>
-            <dt className="text-xs font-sans text-muted-foreground">Duration</dt>
+            <dt className="text-xs font-sans text-muted-foreground">
+              {t('result.duration')}
+            </dt>
             <dd className="text-base font-semibold tracking-tight">{duration}</dd>
           </div>
           <CopyValueButton value={duration} />
         </div>
         <div className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-white/85 px-3 py-2 font-mono text-sm shadow-sm">
           <div>
-            <dt className="text-xs font-sans text-muted-foreground">Decimal hours</dt>
+            <dt className="text-xs font-sans text-muted-foreground">
+              {t('result.decimalHours')}
+            </dt>
             <dd className="text-base font-semibold tracking-tight">{decimal}</dd>
           </div>
-          <CopyValueButton value={decimal.replace(' hr', '')} />
+          <CopyValueButton
+            value={decimal.replace(hourSuffix, '').trim()}
+          />
         </div>
         <div className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-white/85 px-3 py-2 font-mono text-sm shadow-sm">
           <div>
-            <dt className="text-xs font-sans text-muted-foreground">Total minutes</dt>
+            <dt className="text-xs font-sans text-muted-foreground">
+              {t('result.totalMinutes')}
+            </dt>
             <dd className="text-base font-semibold tracking-tight">{mins}</dd>
           </div>
           <CopyValueButton value={String(Math.round(totalMinutes))} />
@@ -149,6 +177,10 @@ function ResultRow({
 }
 
 export function TimeCalculator() {
+  const { t } = useTranslation();
+  const hourSuffix = t('units.hourSuffix');
+  const minuteSuffix = t('units.minuteSuffix');
+
   const id = useId();
   const fromId = `${id}-from`;
   const toId = `${id}-to`;
@@ -241,24 +273,27 @@ export function TimeCalculator() {
   return (
     <Card className="w-full max-w-lg border-border/70 bg-card/95 shadow-lg shadow-slate-200/50 backdrop-blur-sm">
       <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-semibold tracking-tight text-foreground">
-          Time calculator
-        </CardTitle>
-        <CardDescription className="text-[15px] leading-snug">
-          Enter times as digits only (<span className="font-mono text-foreground/90">HMM</span> or{' '}
-          <span className="font-mono text-foreground/90">HHMM</span>, e.g.{' '}
-          <span className="font-mono text-foreground/90">930</span>,{' '}
-          <span className="font-mono text-foreground/90">1000</span>). The hyphen is fixed between
-          the fields; after the first time is complete, focus moves to the second automatically.
-        </CardDescription>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <CardTitle className="text-2xl font-semibold tracking-tight text-foreground">
+              {t('app.title')}
+            </CardTitle>
+            <CardDescription className="text-[15px] leading-snug">
+              {t('app.description')}
+            </CardDescription>
+          </div>
+          <LanguageSwitcher />
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         <fieldset className="space-y-3">
-          <legend className="mb-1 text-sm font-medium leading-none">Calculation</legend>
+          <legend className="mb-1 text-sm font-medium leading-none">
+            {t('calculation.legend')}
+          </legend>
           <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
             <div className="min-w-0 flex-1 space-y-1">
               <label htmlFor={fromId} className="sr-only">
-                Time from
+                {t('calculation.from')}
               </label>
               <Input
                 id={fromId}
@@ -266,11 +301,12 @@ export function TimeCalculator() {
                 inputMode="numeric"
                 autoComplete="off"
                 spellCheck={false}
-                placeholder="1000"
+                placeholder={t('calculation.placeholderFrom')}
                 value={fromDigits}
                 onChange={(e) => onFromChange(e.target.value)}
                 onKeyDown={onFromKeyDown}
                 aria-invalid={showFromError}
+                aria-describedby={showFromError ? errorId : undefined}
                 className={cn(
                   'border-input bg-white/90 text-center font-mono text-lg tracking-widest tabular-nums',
                   showFromError && 'border-destructive focus-visible:ring-destructive',
@@ -285,7 +321,7 @@ export function TimeCalculator() {
             </span>
             <div className="min-w-0 flex-1 space-y-1">
               <label htmlFor={toId} className="sr-only">
-                Time to
+                {t('calculation.to')}
               </label>
               <Input
                 id={toId}
@@ -293,10 +329,11 @@ export function TimeCalculator() {
                 inputMode="numeric"
                 autoComplete="off"
                 spellCheck={false}
-                placeholder="1200"
+                placeholder={t('calculation.placeholderTo')}
                 value={toDigits}
                 onChange={(e) => onToChange(e.target.value)}
                 aria-invalid={showToError}
+                aria-describedby={showToError ? errorId : undefined}
                 className={cn(
                   'border-input bg-white/90 text-center font-mono text-lg tracking-widest tabular-nums',
                   showToError && 'border-destructive focus-visible:ring-destructive',
@@ -311,10 +348,14 @@ export function TimeCalculator() {
           )}
           {!showFromError && !showToError && (
             <p className="text-sm text-muted-foreground">
-              <span className="font-medium text-[hsl(var(--forward-accent))]">Forward</span>: 0300-2000
-              = 17:00.{' '}
-              <span className="font-medium text-[hsl(var(--backward-accent))]">Backward</span>:
-              0300-2000 = 7:00.
+              <span className="font-medium text-[hsl(var(--forward-accent))]">
+                {t('forward.title')}
+              </span>
+              {t('hint.forwardExample')}{' '}
+              <span className="font-medium text-[hsl(var(--backward-accent))]">
+                {t('backward.title')}
+              </span>
+              {t('hint.backwardExample')}
             </p>
           )}
         </fieldset>
@@ -323,15 +364,19 @@ export function TimeCalculator() {
           <div className="space-y-4">
             <ResultRow
               variant="forward"
-              title="Forward"
-              description="Go from first time to second time."
+              title={t('forward.title')}
+              description={t('forward.description')}
               totalMinutes={results.forward}
+              hourSuffix={hourSuffix}
+              minuteSuffix={minuteSuffix}
             />
             <ResultRow
               variant="backward"
-              title="Backward"
-              description="Go from second time back to first time."
+              title={t('backward.title')}
+              description={t('backward.description')}
               totalMinutes={results.backward}
+              hourSuffix={hourSuffix}
+              minuteSuffix={minuteSuffix}
             />
           </div>
         )}

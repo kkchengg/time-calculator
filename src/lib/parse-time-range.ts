@@ -1,12 +1,6 @@
-const TIME_WITH_COLON_RE = /^(\d{1,2}):(\d{2})$/;
 const COMPACT_DIGITS_RE = /^\d{3,4}$/;
 
-export type ParseTimeRangeErrorCode =
-  | 'empty'
-  | 'no_separator'
-  | 'multiple_separators'
-  | 'invalid_time'
-  | 'incomplete';
+export type ParseTimeRangeErrorCode = 'invalid_time';
 
 export class ParseTimeRangeError extends Error {
   constructor(
@@ -16,10 +10,6 @@ export class ParseTimeRangeError extends Error {
     super(message);
     this.name = 'ParseTimeRangeError';
   }
-}
-
-function normalizeDash(raw: string): string {
-  return raw.replace(/\u2013|\u2014/g, '-');
 }
 
 function validateAndToMinutes(
@@ -62,76 +52,6 @@ function parseCompactTime(token: string, label: string): number {
   return validateAndToMinutes(hours, minutes, label);
 }
 
-function parseTimeToken(token: string, label: string): number {
-  const withColon = token.match(TIME_WITH_COLON_RE);
-  if (withColon) {
-    const hours = Number(withColon[1]);
-    const minutes = Number(withColon[2]);
-    return validateAndToMinutes(hours, minutes, label);
-  }
-  return parseCompactTime(token, label);
-}
-
-export interface ParsedTimeRange {
-  leftMinutes: number;
-  rightMinutes: number;
-}
-
-export function parseTimeRange(input: string): ParsedTimeRange {
-  const trimmed = input.trim();
-  if (!trimmed) {
-    throw new ParseTimeRangeError(
-      'empty',
-      'Enter a range like 10:00 - 12:45 or 1000 - 1200.',
-    );
-  }
-
-  const normalized = normalizeDash(trimmed);
-  const dashIndex = normalized.indexOf('-');
-  if (dashIndex === -1) {
-    throw new ParseTimeRangeError(
-      'no_separator',
-      'Use a hyphen between two times, e.g. 10:00 - 12:45 or 1000-1200.',
-    );
-  }
-
-  const secondDash = normalized.indexOf('-', dashIndex + 1);
-  if (secondDash !== -1) {
-    throw new ParseTimeRangeError(
-      'multiple_separators',
-      'Only one range is supported. Use a single hyphen between two times.',
-    );
-  }
-
-  const left = normalized.slice(0, dashIndex).trim();
-  const right = normalized.slice(dashIndex + 1).trim();
-
-  if (!left || !right) {
-    throw new ParseTimeRangeError(
-      'incomplete',
-      'Enter both times, e.g. 10:00 - 12:45 or 1000 - 1200.',
-    );
-  }
-
-  return {
-    leftMinutes: parseTimeToken(left, left),
-    rightMinutes: parseTimeToken(right, right),
-  };
-}
-
-export function tryParseTimeRange(
-  input: string,
-): ParsedTimeRange | ParseTimeRangeError {
-  try {
-    return parseTimeRange(input);
-  } catch (e) {
-    if (e instanceof ParseTimeRangeError) {
-      return e;
-    }
-    throw e;
-  }
-}
-
 const DIGITS_ONLY_FIELD_RE = /^\d{1,4}$/;
 
 export type DigitFieldParseResult =
@@ -144,26 +64,38 @@ function toCompactFourDigits(hours: number, minutes: number): string {
   return `${String(hours).padStart(2, '0')}${String(minutes).padStart(2, '0')}`;
 }
 
+// 12-hour clock input with an am/pm suffix and an optional colon:
+// "10:5pm", "10:05 pm", "1005pm", "930am". Minutes may be a single digit only
+// when a colon is present, so bare "10pm" stays ambiguous and falls through to
+// the plain digit-stripping path below.
+const MERIDIEM_RE =
+  /^(\d{1,2})(?::(\d{1,2})|(\d{2}))\s*(a\.?m\.?|p\.?m\.?)$/i;
+const COLON_TIME_RE = /^(\d{1,2}):(\d{1,2})$/;
+
+function to24Hour(sourceHours: number, isAm: boolean): number {
+  if (sourceHours === 12) {
+    return isAm ? 0 : 12;
+  }
+  return isAm ? sourceHours : sourceHours + 12;
+}
+
 export function sanitizeTimeDigits(raw: string): string {
   const trimmed = raw.trim();
-  const m = trimmed.match(
-    /^(\d{1,2})(?::?)(\d{2})\s*(a\.?m\.?|p\.?m\.?)$/i,
-  );
-  if (m) {
-    const sourceHours = Number(m[1]);
-    const minutes = Number(m[2]);
-    if (minutes < 0 || minutes > 59) {
-      return raw.replace(/\D/g, '').slice(0, 4);
-    }
-    const meridiem = m[3].toLowerCase();
-    if (meridiem.startsWith('a')) {
-      const hours24 = sourceHours === 12 ? 0 : sourceHours;
-      return toCompactFourDigits(hours24, minutes);
-    }
-    const hours24 = sourceHours === 12 ? 12 : sourceHours + 12;
-    return toCompactFourDigits(hours24, minutes);
+
+  const meridiem = trimmed.match(MERIDIEM_RE);
+  if (meridiem) {
+    const sourceHours = Number(meridiem[1]);
+    const minutes = Number(meridiem[2] ?? meridiem[3]);
+    const isAm = meridiem[4].toLowerCase().startsWith('a');
+    return toCompactFourDigits(to24Hour(sourceHours, isAm), minutes);
   }
-  return raw.replace(/\D/g, '').slice(0, 4);
+
+  const colon = trimmed.match(COLON_TIME_RE);
+  if (colon) {
+    return toCompactFourDigits(Number(colon[1]), Number(colon[2]));
+  }
+
+  return trimmed.replace(/\D/g, '').slice(0, 4);
 }
 
 export function tryParseDigitField(digits: string): DigitFieldParseResult {

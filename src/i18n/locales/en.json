@@ -1,0 +1,77 @@
+{
+  "app": {
+    "title": "Time calculator",
+    "description": "Enter times as digits only (HMM or HHMM, e.g. 930, 1000). The hyphen is fixed between the fields; after the first time is complete, focus moves to the second automatically."
+  },
+  "calculation": {
+    "legend": "Calculation",
+    "from": "Time from",
+    "to": "Time to",
+    "placeholderFrom": "1000",
+    "placeholderTo": "1200"
+  },
+  "hint": {
+    "forwardExample": ": 0300-2000 = 17:00.",
+    "backwardExample": ": 0300-2000 = 7:00."
+  },
+  "forward": {
+    "title": "Forward",
+    "description": "Go from first time to second time."
+  },
+  "backward": {
+    "title": "Backward",
+    "description": "Go from second time back to first time."
+  },
+  "result": {
+    "duration": "Duration",
+    "decimalHours": "Decimal hours",
+    "totalMinutes": "Total minutes"
+  },
+  "copy": {
+    "label": "Copy {{value}}"
+  },
+  "units": {
+    "hourSuffix": " hr",
+    "minuteSuffix": " min"
+  },
+  "language": {
+    "switcherLabel": "Language",
+    "en": "English",
+    "zhHant": "繁體",
+    "zhHans": "简体"
+  },
+  "usage": {
+    "title": "How to use",
+    "step1": "Type the first time as digits only: HMM or HHMM (for example 930 or 1000).",
+    "step2": "The second field is focused automatically once the first time is complete, or press Enter / → to move on.",
+    "step3": "Read the Forward and Backward results and tap the copy icon next to any value."
+  },
+  "faq": {
+    "title": "Frequently asked questions",
+    "q1": "What is the difference between Forward and Backward?",
+    "a1": "Forward counts clockwise from the first time to the second; Backward counts the other way around. For 0300 to 2000 that is 17:00 forward and 7:00 backward.",
+    "q2": "How are times across midnight handled?",
+    "a2": "Each result wraps within a single 24-hour day. Going forward from 23:00 to 06:00 is 7:00, and backward is 17:00.",
+    "q3": "Can I enter 12-hour AM/PM times?",
+    "a3": "When pasting, yes: 10:05 pm, 10:5pm and 1005pm are all understood. When typing, enter digits only (2205).",
+    "q4": "Do I need to type a colon or a space?",
+    "a4": "No. The dash between the two fields is fixed; just type 3 or 4 digits for each time.",
+    "q5": "Is my data sent anywhere?",
+    "a5": "No. All calculations run in your browser. Only your language choice is saved locally, and ads are served by Google as described in the privacy policy.",
+    "q6": "Which time zones are supported?",
+    "a6": "Times are treated as plain local clock times, with no time zone or daylight-saving conversion."
+  },
+  "about": {
+    "title": "About this calculator",
+    "body": "This tool computes the elapsed time between two clock times within the same day. Forward gives the shortest clockwise span to the second time; Backward gives the complementary span in the opposite direction. Because only the time of day is known, no date, time zone or daylight-saving adjustments are applied."
+  },
+  "ads": {
+    "label": "Advertisement"
+  },
+  "footer": {
+    "nav": "Legal and privacy",
+    "privacy": "Privacy Policy",
+    "cookies": "Cookie Policy",
+    "settings": "Cookie settings"
+  }
+}

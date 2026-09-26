@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://kkchengg.github.io/time-calculator/sitemap.xml
