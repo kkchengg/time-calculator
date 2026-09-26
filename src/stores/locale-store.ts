@@ -4,7 +4,11 @@ import { persist } from 'zustand/middleware';
 export type LocaleId = 'en' | 'zh-Hant' | 'zh-Hans';
 
 export function detectBrowserLocale(): LocaleId {
-  const lang = navigator.language.toLowerCase();
+  // During prerendering there is no window; always emit the default locale.
+  if (typeof window === 'undefined') {
+    return 'en';
+  }
+  const lang = (navigator.language ?? '').toLowerCase();
   if (
     lang === 'zh-tw' ||
     lang === 'zh-hk' ||
